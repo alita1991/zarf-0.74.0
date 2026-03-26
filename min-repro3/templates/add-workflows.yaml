@@ -1,0 +1,57 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-init-add-workflows
+  labels:
+    app: {{ .Chart.Name }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+    component: init-add-workflows
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade,post-rollback
+spec:
+  template:
+    metadata:
+      name: {{ .Chart.Name }}-init-add-workflows
+      labels:
+        app: {{ .Chart.Name }}
+        release: "{{ .Release.Name }}"
+        component: init-add-workflows
+    spec:
+      imagePullSecrets:
+        - name: oci-secret-global
+      securityContext:
+        {}
+      containers:
+        - name: init-add-workflows
+          image: "example.com/repro:1.0"
+          command:
+          - "/bin/sh"
+          - "-c"
+          - |
+            for file in /app/*workflows/*.json
+            do
+              echo --------------------
+              resp=$(curl -o /dev/null -s -w "%{http_code}\n" -k -X POST --url http://localhost:8080/api/metadata/workflow -H 'Content-Type: application/json' -d "@"$file)
+              if [ 409 = $resp ] ; then
+                echo "Workflow $file Exists, Updating..."
+                update=$(cat "$file");
+                resp=$(curl -o /dev/null -s -w "%{http_code}\n" -k -X PUT --url http://localhost:8080/api/metadata/workflow -H 'Content-Type: application/json' -d "[$update]")
+              elif [ 000 = $resp ] ; then
+                exit 1
+              fi
+              echo "Adding Workflow '$file' Status Code: $resp"
+            done
+            echo --------------------
+          securityContext:
+            {}
+          volumeMounts:
+          - name: workflow-configmap
+            mountPath: /app/workflows/
+      volumes:
+        - name: workflow-configmap
+          configMap:
+            name: autoload-workflows
+      restartPolicy: OnFailure

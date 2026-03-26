@@ -1,0 +1,12 @@
+kind: ZarfPackageConfig
+metadata:
+  name: min-repro3
+  version: 0.0.1
+components:
+  - name: charts
+    required: true
+    charts:
+      - name: min-repro3
+        version: 0.1.0
+        namespace: default
+        localPath: min-repro3
